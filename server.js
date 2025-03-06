@@ -1,17 +1,23 @@
 const express = require('express');
 const mysql = require('mysql2');
-const bcrypt = require('bcryptjs');  
+const bcrypt = require('bcryptjs');
 const cors = require('cors');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env file
+dotenv.config();
+
 const app = express();
 
 app.use(express.json());  // Middleware to parse JSON request body
 app.use(cors());
 
+// Use environment variables from .env file
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'Gymboost123',
-    database: 'GymBoost'
+    host: process.env.DB_HOST,     // Using DB_HOST from .env
+    user: process.env.DB_USER,     // Using DB_USER from .env
+    password: process.env.DB_PASSWORD, // Using DB_PASSWORD from .env
+    database: process.env.DB_NAME  // Using DB_NAME from .env
 });
 
 // Test MySQL connection
@@ -26,8 +32,7 @@ db.connect(err => {
 // Route to register a new user with hashed password and email
 app.post('/register', (req, res) => {
     const { username, password } = req.body;
-   
-       
+
     // Check if the username or password is empty
     if (username.length == 0 || password.length == 0) {
         return res.status(400).json({ message: 'Username and password are required.' });
@@ -55,8 +60,6 @@ app.post('/register', (req, res) => {
         if (err) {
             return res.status(500).json({ message: 'Error checking username', error: err });
         }
-        
- 
 
         // If the count is greater than 0, the username exists
         if (result[0].count > 0) {
@@ -126,10 +129,8 @@ app.post('/login', (req, res) => {
     });
 });
 
-
-
 // Start server
-const port = 3000;
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
-    console.log("Server is running on port " + port);
+    console.log(`Server is running on port ${port}`);
 });
