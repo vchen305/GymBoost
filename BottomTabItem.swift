@@ -1,24 +1,22 @@
-//
-//  BottomTabItem.swift
-//  GymBoost
-//
-//  Created by Vincent Chen on 3/5/25.
-//
 import SwiftUI
-// Bottom Tab Bar Item
+
 struct BottomTabItem: View {
     let icon: String
     let label: String
     var highlighted: Bool = false
-    
+    var isDarkMode: Bool
+
     var body: some View {
         VStack {
             Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(highlighted ? .orange : .black)
+                .font(.system(size: 24))
+                .foregroundColor(highlighted ? .orange : (isDarkMode ? .orange : .black))
+            
             Text(label)
                 .font(.caption)
+                .foregroundColor(highlighted ? .orange : (isDarkMode ? .orange : .black))
         }
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
     }
 }

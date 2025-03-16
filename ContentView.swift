@@ -3,23 +3,20 @@ import SwiftUI
 struct ContentView: View {
     @State private var showHomepage = false
     @State private var showFirstCaloriePage = false
+
     var body: some View {
-        NavigationView {
-            VStack {
-                if showHomepage {
+        NavigationStack {
+            LoginSignupView(showHomepage: $showHomepage, showFirstCaloriePage: $showFirstCaloriePage)
+                .navigationDestination(isPresented: $showHomepage) {
                     if showFirstCaloriePage {
-                        FirstLoginCaloriePageView()
+                        FirstLoginCaloriePageView(showHomepage: $showHomepage)
                     } else {
-                        HomepageView()
+                        HomepageView(showHomepage: $showHomepage)
+                            .edgesIgnoringSafeArea(.all)
                     }
-                } else {
-                    LoginSignupView(showHomepage: $showHomepage, showFirstCaloriePage: $showFirstCaloriePage)
                 }
-            }
-            .padding()
         }
     }
-    
 }
 
 struct ContentView_Previews: PreviewProvider {

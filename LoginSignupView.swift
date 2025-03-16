@@ -1,16 +1,6 @@
-//
-//  LoginSignupView.swift
-//  GymBoost
-//
-//  Created by Vincent Chen on 3/6/25.
-//
-
 import SwiftUI
 
-
-
-struct LoginSignupView: View{
-    
+struct LoginSignupView: View {
     @State private var isSignUpView = false
     @State private var username = ""
     @State private var password = ""
@@ -19,8 +9,9 @@ struct LoginSignupView: View{
     @State private var isSignUpSuccess = false
     @Binding var showHomepage: Bool
     @Binding var showFirstCaloriePage: Bool
+    @AppStorage("authToken") private var authToken: String = ""
     
-    var body: some View{
+    var body: some View {
         Text(isSignUpView ? "Sign Up" : "Login")
             .font(.largeTitle)
             .padding()
@@ -45,7 +36,7 @@ struct LoginSignupView: View{
             }
         }) {
             Text(isSignUpView ? "Sign Up" : "Login")
-                .frame(maxWidth: .infinity)
+                .frame(width: 200)
                 .padding()
                 .background(Color.blue)
                 .foregroundColor(.white)
@@ -65,7 +56,6 @@ struct LoginSignupView: View{
         }
         .padding(.top, 10)
         
-        
         if isSignUpSuccess && !isSignUpView {
             Text("Sign Up Successful! Please log in.")
                 .foregroundColor(.green)
@@ -73,16 +63,18 @@ struct LoginSignupView: View{
                 .transition(.opacity)
         }
         
-        
-        if !errorMessage.isEmpty {
+        if isErrorVisible {
             Text(errorMessage)
                 .foregroundColor(.red)
-                .padding(.top, 20)
+                .padding()
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal, 20)
         }
-        
-        
-        
     }
+    
     func signUpUser() {
         let parameters: [String: Any] = [
             "username": username.isEmpty ? "" : username,
@@ -93,19 +85,14 @@ struct LoginSignupView: View{
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: [])
         } catch {
-            print("Error: Cannot convert parameters to JSON")
             return
         }
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error: \(error.localizedDescription)")
-                return
-            }
-            
             if let data = data {
                 do {
                     let jsonResponse = try JSONSerialization.jsonObject(with: data, options: [])
@@ -113,11 +100,10 @@ struct LoginSignupView: View{
                         DispatchQueue.main.async {
                             errorMessage = ""
                             isErrorVisible = false
-                            
                             if message == "User registered successfully" {
                                 isSignUpSuccess = true
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                                    isSignUpView = false  // Switch to login view
+                                    isSignUpView = false
                                 }
                             } else {
                                 errorMessage = message
@@ -125,9 +111,7 @@ struct LoginSignupView: View{
                             }
                         }
                     }
-                } catch {
-                    print("Error: Cannot parse JSON response")
-                }
+                } catch {}
             }
         }
         
@@ -143,39 +127,38 @@ struct LoginSignupView: View{
         
         let parameters: [String: Any] = [
             "username": username,
-            "password": password,
+            "password": password
         ]
         
         guard let url = URL(string: "http://localhost:3000/login") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: parameters, options: [])
         } catch {
-            print("Error: Cannot convert parameters to JSON")
             return
         }
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error: \(error.localizedDescription)")
-                return
-            }
-            
             if let data = data {
                 do {
                     let jsonResponse = try JSONSerialization.jsonObject(with: data, options: [])
-                    if let responseDict = jsonResponse as? [String: Any], let message = responseDict["message"] as? String {
+                    if let responseDict = jsonResponse as? [String: Any],
+                       let message = responseDict["message"] as? String {
+                        
                         DispatchQueue.main.async {
-                            if message == "Login successful" {
+                            if message == "Login successful", let token = responseDict["token"] as? String {
+                                authToken = token
                                 errorMessage = ""
                                 isErrorVisible = false
-                                showHomepage = true  // Show the homepage
+                                showHomepage = true
                                 
-                                // Check if it's the user's first login
                                 if let firstLogin = responseDict["firstLogin"] as? Int, firstLogin == 1 {
-                                    showFirstCaloriePage = true  // Show the first calorie page
+                                    showFirstCaloriePage = true
+                                } else {
+                                    showFirstCaloriePage = false
                                 }
                             } else {
                                 errorMessage = message
@@ -184,12 +167,14 @@ struct LoginSignupView: View{
                         }
                     }
                 } catch {
-                    print("Error: Cannot parse JSON response")
+                    DispatchQueue.main.async {
+                        errorMessage = "Error parsing response"
+                        isErrorVisible = true
+                    }
                 }
             }
         }
         
         task.resume()
-        
     }
 }

@@ -5,90 +5,92 @@ struct FirstLoginCaloriePageView: View {
     @State private var otherCalories: String = ""
     @State private var errorMessage: String? = nil
     @State private var navigateToHome: Bool = false
+    @Binding var showHomepage: Bool
     
     let calorieOptions = [1000, 2000, 3000, 4000, 5000]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                Text("Choose your preferred daily calorie needs")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .padding(.top, 40)
+        VStack(spacing: 20) {
+            Text("Choose your preferred daily calorie needs")
+                .font(.title)
+                .fontWeight(.bold)
+                .padding(.top, 40)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(calorieOptions, id: \.self) { calorie in
-                        HStack {
-                            Checkbox(isChecked: self.selectedCalories == calorie) {
-                                self.selectedCalories = calorie
-                            }
-                            Text("\(calorie) kcal")
-                        }
-                    }
-
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(calorieOptions, id: \.self) { calorie in
                     HStack {
-                        Checkbox(isChecked: selectedCalories == -1) {
-                            selectedCalories = selectedCalories == -1 ? nil : -1
+                        Checkbox(isChecked: self.selectedCalories == calorie) {
+                            self.selectedCalories = calorie
                         }
-                        Text("Other")
+                        Text("\(calorie) kcal")
                     }
                 }
-                .padding()
 
-                if selectedCalories == -1 {
-                    TextField("Enter your calories", text: $otherCalories)
-                        .keyboardType(.numberPad)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .padding()
-                }
-
-                if let errorMessage = errorMessage {
-                    Text(errorMessage)
-                        .foregroundColor(.red)
-                        .padding(.top, 10)
-                }
-
-                VStack {
-                    Text("Selected Calorie Options:")
-                        .font(.headline)
-
-                    if let selectedCalories = selectedCalories {
-                        if selectedCalories != -1 {
-                            Text("\(selectedCalories) kcal")
-                        } else if !otherCalories.isEmpty {
-                            Text("Other: \(otherCalories) kcal")
-                        }
+                HStack {
+                    Checkbox(isChecked: selectedCalories == -1) {
+                        selectedCalories = selectedCalories == -1 ? nil : -1
                     }
+                    Text("Other")
                 }
-                .padding()
-
-                Button(action: {
-                    if selectedCalories == nil {
-                        errorMessage = "Please select a calorie option"
-                    } else {
-                        errorMessage = nil
-                        if selectedCalories == -1 && otherCalories.isEmpty {
-                            errorMessage = "Please enter a valid calorie number."
-                        } else {
-                            navigateToHome = true
-                        }
-                    }
-                }) {
-                    Text("Confirm")
-                        .fontWeight(.bold)
-                        .frame(width: 200, height: 50)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                        .padding(.top, 20)
-                }
-
             }
             .padding()
-            .navigationDestination(isPresented: $navigateToHome) {
-                HomepageView()
+            
+            if selectedCalories == -1 {
+                TextField("Enter your calories", text: $otherCalories)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+            }
+
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .padding(.top, 10)
+            }
+
+            VStack {
+                Text("Selected Calorie Options:")
+                    .font(.headline)
+
+                if let selectedCalories = selectedCalories {
+                    if selectedCalories != -1 {
+                        Text("\(selectedCalories) kcal")
+                    } else if !otherCalories.isEmpty {
+                        Text("Other: \(otherCalories) kcal")
+                    }
+                }
+            }
+            .padding()
+
+            Button(action: {
+                if selectedCalories == nil {
+                    errorMessage = "Please select a calorie option"
+                } else {
+                    errorMessage = nil
+                    if selectedCalories == -1 && otherCalories.isEmpty {
+                        errorMessage = "Please enter a valid calorie number."
+                    } else {
+                        navigateToHome = true
+                    }
+                }
+            }) {
+                Text("Confirm")
+                    .fontWeight(.bold)
+                    .frame(width: 200, height: 50)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.top, 20)
             }
         }
+        .padding()
+        .background(
+            NavigationLink(
+                destination: HomepageView(showHomepage: $showHomepage),
+                isActive: $navigateToHome,
+                label: { EmptyView() }
+            )
+        )
     }
 }
 
@@ -110,11 +112,5 @@ struct Checkbox: View {
                     .border(Color.black, width: 2)
             }
         }
-    }
-}
-
-struct FirstLoginCaloriePage_Previews: PreviewProvider {
-    static var previews: some View {
-        FirstLoginCaloriePageView()
     }
 }
