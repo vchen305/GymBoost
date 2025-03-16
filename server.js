@@ -79,31 +79,31 @@ const authenticateUser = (req, res, next) => {
 
 app.post("/upload-avatar", authenticateUser, upload.single("avatar"), (req, res) => {
     if (!req.file) {
-        console.log("❌ No file uploaded");
+        console.log("No file uploaded");
         return res.status(400).json({ error: "No file uploaded" });
     }
 
     if (!req.user || !req.user.id) {
-        console.log("❌ Unauthorized: No user ID found");
+        console.log("Unauthorized: No user ID found");
         return res.status(401).json({ error: "Unauthorized: No user ID found" });
     }
 
     const avatarUrl = `http://localhost:3000/uploads/${req.file.filename}`;
     const userId = req.user.id;
 
-    console.log(`📸 Avatar Uploaded: ${avatarUrl}`);
-    console.log(`👤 Updating avatar for user ID: ${userId}`);
+    console.log(`Avatar Uploaded: ${avatarUrl}`);
+    console.log(`Updating avatar for user ID: ${userId}`);
 
     // Save to database
     const updateQuery = "UPDATE user SET avatar_url = ? WHERE userID = ?";
     db.query(updateQuery, [avatarUrl, userId], (err, result) => {
         if (err) {
-            console.error("❌ Database Error:", err);
+            console.error("Database Error:", err);
             return res.status(500).json({ error: "Database error", details: err });
         }
 
-        console.log(`✅ Avatar URL updated successfully for user ID: ${userId}`);
-        console.log("📂 DB Update Result:", result);
+        console.log(`Avatar URL updated successfully for user ID: ${userId}`);
+        console.log("DB Update Result:", result);
 
         res.json({ avatarUrl });
     });
@@ -114,7 +114,7 @@ app.get('/profile', authenticateUser, (req, res) => {
     const userQuery = 'SELECT username, avatar_url FROM user WHERE userID = ?';
     db.query(userQuery, [req.user.id], (err, result) => {
         if (err) {
-            console.error("❌ Database Error:", err);
+            console.error("Database Error:", err);
             return res.status(500).json({ message: 'Error fetching user', error: err });
         }
 
@@ -122,7 +122,7 @@ app.get('/profile', authenticateUser, (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        console.log("🔄 User profile fetched:", result[0]);
+        console.log("User profile fetched:", result[0]);
 
         res.json({
             username: result[0].username,
