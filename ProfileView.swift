@@ -280,7 +280,7 @@ struct SettingsView: View {
         .foregroundColor(isDarkMode ? Color.white : Color.black)
         .ignoresSafeArea()
         .fullScreenCover(isPresented: $showCalorieAdjustment) {
-            FirstLoginCaloriePageView(showHomepage: $showHomepage)
+            FirstLoginCaloriePageView(showHomepage: $showHomepage, isFromSettings: true)
         }
     }
 }

@@ -3,17 +3,17 @@ import SwiftUI
 struct ContentView: View {
     @State private var showHomepage = false
     @State private var showFirstCaloriePage = false
+    @State private var isFromSettings: Bool = false
 
     var body: some View {
         NavigationStack {
             LoginSignupView(showHomepage: $showHomepage, showFirstCaloriePage: $showFirstCaloriePage)
+                .fullScreenCover(isPresented: $showFirstCaloriePage) {
+                    FirstLoginCaloriePageView(showHomepage: $showHomepage, isFromSettings: isFromSettings)
+                }
                 .navigationDestination(isPresented: $showHomepage) {
-                    if showFirstCaloriePage {
-                        FirstLoginCaloriePageView(showHomepage: $showHomepage)
-                    } else {
-                        HomepageView(showHomepage: $showHomepage)
-                            .edgesIgnoringSafeArea(.all)
-                    }
+                    HomepageView(showHomepage: $showHomepage)
+                        .edgesIgnoringSafeArea(.all)
                 }
         }
     }
