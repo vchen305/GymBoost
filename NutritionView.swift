@@ -13,8 +13,21 @@ struct NutritionView: View {
 
     var body: some View {
         VStack {
+            
+            HStack {
+                Text("GymBoost")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(Color.orange)
+                    .padding(.top, 1)
+                    .padding(.leading, 117)
+
+                Spacer()
+            }
+            .padding(.horizontal)
             // Calories Summary
             VStack {
+                
                 Text("Calories")
                     .font(.headline)
                     .foregroundColor(isDarkMode ? .white : .black)
