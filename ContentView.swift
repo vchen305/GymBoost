@@ -7,13 +7,13 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            LoginSignupView(showHomepage: $showHomepage, showFirstCaloriePage: $showFirstCaloriePage)
+            LoginSignupView(showFirstCaloriePage: $showFirstCaloriePage, showHomepage: $showHomepage)
                 .fullScreenCover(isPresented: $showFirstCaloriePage) {
                     FirstLoginCaloriePageView(showHomepage: $showHomepage, isFromSettings: isFromSettings)
                 }
                 .navigationDestination(isPresented: $showHomepage) {
                     HomepageView(showHomepage: $showHomepage)
-                        .edgesIgnoringSafeArea(.all)
+                       
                 }
         }
     }

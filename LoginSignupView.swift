@@ -7,8 +7,8 @@ struct LoginSignupView: View {
     @State private var errorMessage = ""
     @State private var isErrorVisible = false
     @State private var isSignUpSuccess = false
-    @Binding var showHomepage: Bool
     @Binding var showFirstCaloriePage: Bool
+    @Binding var showHomepage: Bool
     @AppStorage("authToken") private var authToken: String = ""
     
     var body: some View {
@@ -151,14 +151,18 @@ struct LoginSignupView: View {
                         DispatchQueue.main.async {
                             if message == "Login successful", let token = responseDict["token"] as? String {
                                 authToken = token
+                                print("Auth Token: \(authToken)")
                                 errorMessage = ""
                                 isErrorVisible = false
-                                showHomepage = true
+                    
+                            
                                 
                                 if let firstLogin = responseDict["firstLogin"] as? Int, firstLogin == 1 {
                                     showFirstCaloriePage = true
                                 } else {
+                                    
                                     showFirstCaloriePage = false
+                                    showHomepage = true
                                 }
                             } else {
                                 errorMessage = message

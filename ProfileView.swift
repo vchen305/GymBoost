@@ -8,7 +8,6 @@ struct ProfileView: View {
     @State private var selectedImage: UIImage? = nil
     @State private var showImagePicker = false
     @State private var username: String = "Loading..."
-    @State private var email: String = "Loading..."
     @State private var avatarURL: String = ""
     @State private var showSettings = false
     
@@ -48,9 +47,7 @@ struct ProfileView: View {
                 Text("Username: \(username)")
                     .font(.title)
                     .padding(.bottom, 5)
-                Text("Email: \(email)")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+             
             }
             .padding()
             
@@ -82,6 +79,7 @@ struct ProfileView: View {
             .padding()
             
             Spacer()
+            
         }
         .navigationBarTitle("Profile", displayMode: .inline)
         .toolbar {
@@ -259,6 +257,7 @@ struct SettingsView: View {
                           .onChange(of: isDarkMode) {
                               let userKey = "isDarkMode_\(username)"
                               UserDefaults.standard.set(isDarkMode, forKey: userKey)
+                              
                           }
 
             Button(action: {

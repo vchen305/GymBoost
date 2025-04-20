@@ -7,15 +7,20 @@ const crypto = require('crypto');
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const axios = require('axios');
+const bodyParser = require('body-parser');
 
 // Load environment variables from .env file
 dotenv.config();
+
 
 const app = express();
 
 app.use(express.json());  // Middleware to parse JSON request body
 app.use(cors());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.use(bodyParser.json());
 
 
 // Multer storage config (save to 'uploads/' folder)
@@ -77,6 +82,235 @@ const authenticateUser = (req, res, next) => {
     });
 };
 
+
+
+
+app.get('/caloriesData', authenticateUser, (req, res) => {
+    const userID = req.user.id;
+
+    const sql = `
+        SELECT 
+            daily_calories, 
+            calories_consumed, 
+            calories_burned, 
+            calories_needed,
+            carbs,
+            fat,
+            protein
+        FROM user 
+        WHERE userID = ?
+    `;
+
+    db.query(sql, [userID], (err, result) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+
+        if (result.length === 0) return res.status(404).json({ error: 'User not found' });
+
+        res.json(result[0]);
+    });
+});
+
+app.get('/sync-exercises', async (req, res) => {
+    const muscleGroupMap = {
+        "Leg Workout": ["hamstrings", "glutes", "calves", "quadriceps"],
+        "Chest Workout": ["chest"],
+        "Arms Workout": ["biceps", "triceps", "forearms"],
+        "Back Workout": ["lats", "lower_back", "middle_back", "traps"],
+        "Shoulder Workout": ["traps"]
+    };
+
+    try {
+        for (const [workoutType, muscleGroups] of Object.entries(muscleGroupMap)) {
+            for (const muscle of muscleGroups) {
+                const response = await axios.get(`https://api.api-ninjas.com/v1/exercises?muscle=${muscle}`, {
+                    headers: { 'X-Api-Key': process.env.EXERCISE_API_KEY }
+                });
+
+                const exercises = response.data;
+
+                exercises.forEach(exercise => {
+                    const { name, difficulty } = exercise;
+
+                    const insertQuery = `
+                        INSERT IGNORE INTO exercises (name, muscle_group, difficulty)
+                        VALUES (?, ?, ?)
+                    `;
+
+                    db.query(insertQuery, [name, muscle, difficulty], (err) => {
+                        if (err) {
+                            console.error(`Error inserting ${name}:`, err);
+                        } else {
+                            console.log(`Inserted: ${name} (${muscle})`);
+                        }
+                    });
+                });
+            }
+        }
+
+        res.json({ success: true, message: 'Exercises synced.' });
+    } catch (error) {
+        console.error("API or DB error:", error);
+        res.status(500).json({ error: "Error syncing exercises", details: error.message });
+    }
+});
+
+
+app.get('/sync-foods', async (req, res) => {
+    const foodItems = [
+        'apple', 'banana', 'orange', 'grapes', 'strawberries',
+        'broccoli', 'carrot', 'spinach', 'lettuce', 'onion',
+        'chicken breast', 'ground beef', 'salmon', 'egg', 'milk',
+        'cheddar cheese', 'yogurt', 'white rice', 'brown rice', 'pasta',
+        'bread', 'oatmeal', 'peanut butter', 'almonds', 'potato'
+    ];
+
+    // Nutrients to include
+    const targetNutrients = ['Protein', 'Total lipid (fat)', 'Carbohydrate, by difference'];
+
+    try {
+        for (const food of foodItems) {
+            const response = await axios.get('https://api.nal.usda.gov/fdc/v1/foods/search', {
+                params: {
+                    query: food,
+                    api_key: process.env.USDA_API_KEY,
+                    pageSize: 5
+                }
+            });
+
+            const foods = response.data.foods;
+
+            if (foods && foods.length > 0) {
+                for (const foodData of foods) {
+                    const hasBrand = foodData.brandName && foodData.brandName.trim() !== '';
+                    const name = hasBrand
+                        ? `${foodData.brandName} - ${foodData.description}`
+                        : foodData.description;
+
+                    // Find calorie value (energy)
+                    const energyNutrient = foodData.foodNutrients.find(nutrient =>
+                        nutrient.nutrientName === 'Energy' && nutrient.unitName === 'KCAL'
+                    );
+                    const calories = energyNutrient?.value || null;
+
+                    if (calories !== null) {
+                        const insertFoodQuery = `
+                            INSERT IGNORE INTO food (name, calories)
+                            VALUES (?, ?)
+                        `;
+
+                        db.query(insertFoodQuery, [name, calories], (err) => {
+                            if (err) {
+                                console.error(`Error inserting food: ${name}`, err);
+                                return;
+                            }
+
+                            const getFoodIdQuery = `SELECT id FROM food WHERE name = ? LIMIT 1`;
+                            db.query(getFoodIdQuery, [name], (err, result) => {
+                                if (err || result.length === 0) {
+                                    console.error(`Error retrieving food ID for ${name}`, err);
+                                    return;
+                                }
+
+                                const foodId = result[0].id;
+
+                                for (const nutrient of foodData.foodNutrients) {
+                                    if (!targetNutrients.includes(nutrient.nutrientName)) continue;
+
+                                    const insertNutrientQuery = `
+                                        INSERT INTO food_nutrients (
+                                            food_id, serving_size_description,
+                                            amount, unit, nutrient_name,
+                                            nutrient_value, calories
+                                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                                    `;
+
+                                    db.query(insertNutrientQuery, [
+                                        foodId,
+                                        foodData.servingSizeUnit || 'per serving',
+                                        foodData.servingSize || 1,
+                                        nutrient.unitName,
+                                        nutrient.nutrientName,
+                                        nutrient.value,
+                                        calories
+                                    ], (err) => {
+                                        if (err) {
+                                            console.error(`Error inserting nutrient for ${name}`, err);
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    }
+                }
+            }
+        }
+
+        res.json({ success: true, message: 'Food and macronutrients synced.' });
+    } catch (error) {
+        console.error("API or DB error:", error);
+        res.status(500).json({ error: "Error syncing food data", details: error.message });
+    }
+});
+
+
+
+
+
+app.get('/api/foods', (req, res) => {
+    const search = req.query.search || '';
+    const sortBy = ['name', 'calories'].includes(req.query.sort) ? req.query.sort : 'name';
+    const order = req.query.order === 'desc' ? 'DESC' : 'ASC';
+
+    const query = `
+        SELECT f.id AS food_id, f.name, f.calories,
+               fn.id AS nutrient_id, fn.serving_size_description, fn.amount, fn.unit,
+               fn.nutrient_name, fn.nutrient_value, fn.calories AS nutrient_calories
+        FROM food f
+        LEFT JOIN food_nutrients fn ON f.id = fn.food_id
+        WHERE f.name LIKE ?
+        ORDER BY ${sortBy} ${order}
+        LIMIT 100
+    `;
+
+    db.query(query, [`%${search}%`], (err, results) => {
+        if (err) {
+            console.error('DB error:', err);
+            return res.status(500).json({ error: 'Database query failed' });
+        }
+
+        const foods = [];
+
+        const foodMap = {};
+
+        results.forEach(row => {
+            if (!foodMap[row.food_id]) {
+                foodMap[row.food_id] = {
+                    id: row.food_id,
+                    name: row.name,
+                    calories: row.calories,
+                    nutrients: []
+                };
+                foods.push(foodMap[row.food_id]);
+            }
+
+            if (row.nutrient_id) {
+                foodMap[row.food_id].nutrients.push({
+                    id: row.nutrient_id,
+                    food_id: row.food_id,
+                    serving_size_description: row.serving_size_description,
+                    amount: row.amount,
+                    unit: row.unit,
+                    nutrient_name: row.nutrient_name,
+                    nutrient_value: row.nutrient_value,
+                    calories: row.nutrient_calories
+                });
+            }
+        });
+
+        res.json({ data: foods });
+    });
+});
+
 app.post("/upload-avatar", authenticateUser, upload.single("avatar"), (req, res) => {
     if (!req.file) {
         console.log("No file uploaded");
@@ -107,6 +341,171 @@ app.post("/upload-avatar", authenticateUser, upload.single("avatar"), (req, res)
 
         res.json({ avatarUrl });
     });
+});
+
+
+function authenticateToken(req, res, next) {
+  const token = req.header('Authorization');
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+
+  db.query('SELECT user_id FROM sessions WHERE token = ?', [token], (err, results) => {
+    if (err) return res.status(500).json({ error: 'DB error' });
+    if (results.length === 0) return res.status(403).json({ message: 'Invalid token' });
+
+    req.userId = results[0].user_id;
+    next();
+  });
+}
+
+app.post('/save-workout', authenticateToken, (req, res) => {
+  const { name, sets, reps, day } = req.body;
+  const userID = req.userId;
+
+  if (!name || sets === undefined || reps === undefined || !day) {
+    return res.status(400).json({ message: 'Missing data' });
+  }
+
+  const validDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  if (!validDays.includes(day)) {
+    return res.status(400).json({ message: 'Invalid day value' });
+  }
+
+  console.log('Received data:', { name, sets, reps, day, userID });
+
+  db.query('SELECT id FROM exercises WHERE name = ?', [name], (err, result) => {
+    if (err) {
+      console.error('Error fetching exercise data:', err);
+      return res.status(500).json({ message: 'Failed to fetch exercise data' });
+    }
+
+    if (result.length === 0) {
+      console.log('Exercise not found:', name);
+      return res.status(404).json({ message: 'Exercise not found' });
+    }
+
+    const exerciseID = result[0].id;
+
+
+ 
+    const insertQuery = `
+      INSERT INTO workouts (userID, exerciseID, sets, reps, day)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.query(insertQuery, [userID, exerciseID, sets, reps, day], (err, result) => {
+      if (err) {
+        console.error('Insert error:', err);
+        return res.status(500).json({ message: 'Failed to save workout' });
+      }
+
+      console.log('Workout saved:', result);
+      res.status(201).json({ message: 'Workout saved successfully' });
+    });
+  });
+});
+
+app.post('/update-calories', authenticateUser, (req, res) => {
+    const userID = req.user.id;
+    const { daily_calories, calories_needed } = req.body;
+
+    // Validate daily_calories and calories_needed
+    if (!daily_calories || isNaN(daily_calories)) {
+        return res.status(400).json({ error: "Invalid daily calorie value" });
+    }
+
+    if (calories_needed && isNaN(calories_needed)) {
+        return res.status(400).json({ error: "Invalid calories_needed value" });
+    }
+
+    // Update query to handle both daily_calories and calories_needed
+    const updateQuery = `
+        UPDATE user 
+        SET daily_calories = ?, calories_needed = ? 
+        WHERE userID = ?
+    `;
+
+    db.query(updateQuery, [daily_calories, calories_needed || daily_calories, userID], (err) => {
+        if (err) {
+            console.error("Error updating calories:", err);
+            return res.status(500).json({ error: "Database error" });
+        }
+
+        res.status(200).json({ message: "Calories updated successfully" });
+    });
+});
+
+app.post('/update-calories-needed', authenticateUser, (req, res) => {
+    const userID = req.user.id;
+    const { food_calories, protein = 0, fat = 0, carbs = 0 } = req.body;
+
+    if (!food_calories || isNaN(food_calories)) {
+        return res.status(400).json({ error: "Invalid food calories value" });
+    }
+
+    const getQuery = `SELECT calories_needed, calories_consumed FROM user WHERE userID = ?`;
+    db.query(getQuery, [userID], (err, result) => {
+        if (err) {
+            console.error("Error fetching current calorie data:", err);
+            return res.status(500).json({ error: "Database error" });
+        }
+
+        if (result.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        let caloriesNeeded = result[0].calories_needed;
+        let caloriesConsumed = result[0].calories_consumed;
+
+        caloriesConsumed += food_calories;
+        caloriesNeeded = Math.max(0, caloriesNeeded - food_calories);
+
+        const updateQuery = `
+            UPDATE user
+            SET calories_needed = ?, 
+                calories_consumed = ?, 
+                protein = protein + ?, 
+                fat = fat + ?, 
+                carbs = carbs + ?
+            WHERE userID = ?
+        `;
+        const params = [caloriesNeeded, caloriesConsumed, protein, fat, carbs, userID];
+
+        db.query(updateQuery, params, (err) => {
+            if (err) {
+                console.error("Error updating user data:", err);
+                return res.status(500).json({ error: "Database error" });
+            }
+
+            res.status(200).json({ message: "User data updated successfully" });
+        });
+    });
+});
+
+
+
+
+
+
+app.get('/get-workouts', authenticateToken, (req, res) => {
+  const userID = req.userId;
+
+  const query = `
+    SELECT w.day, w.sets, w.reps, e.name AS exercise_name
+    FROM workouts w
+    JOIN exercises e ON w.exerciseID = e.id
+    WHERE w.userID = ?
+    ORDER BY FIELD(w.day, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')
+  `;
+
+  db.query(query, [userID], (err, results) => {
+    if (err) {
+      console.error('Error fetching workouts:', err);
+      return res.status(500).json({ message: 'Failed to fetch workouts' });
+    }
+
+    res.json(results);
+  });
 });
 
 
