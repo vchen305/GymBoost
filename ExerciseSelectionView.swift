@@ -128,6 +128,7 @@ struct ExerciseView: View {
                                                 }
                                             }
                                             .padding(.horizontal)
+                                            .padding(.top,20)
                                         }
                                     }
                                     .padding(.horizontal)

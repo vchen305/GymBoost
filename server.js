@@ -13,7 +13,6 @@ const bodyParser = require('body-parser');
 // Load environment variables from .env file
 dotenv.config();
 
-
 const app = express();
 
 app.use(express.json());  // Middleware to parse JSON request body
@@ -661,7 +660,47 @@ app.post('/login', (req, res) => {
     });
 });
 
+app.post('/update-nutrition', authenticateUser, (req, res) => {
+  const { calories_consumed, carbs, fat, protein } = req.body;
+  
+  // Basic validation
+  if (
+    calories_consumed == null ||
+    carbs == null ||
+    fat == null ||
+    protein == null
+  ) {
+    return res.status(400).json({ message: 'Missing nutrition fields' });
+  }
 
+  // Update the user row and recompute calories_needed = max(daily_calories - calories_consumed, 0)
+  const sql = `
+    UPDATE user
+    SET
+      calories_consumed = ?,
+      carbs              = ?,
+      fat                = ?,
+      protein            = ?,
+      calories_needed    = GREATEST(daily_calories - ?, 0)
+    WHERE userID = ?
+  `;
+  const params = [
+    calories_consumed,
+    carbs,
+    fat,
+    protein,
+    calories_consumed,
+    req.user.id
+  ];
+
+  db.query(sql, params, (err, result) => {
+    if (err) {
+      console.error('Error updating nutrition:', err);
+      return res.status(500).json({ message: 'Database error', error: err });
+    }
+    res.json({ success: true });
+  });
+});
 
 // Start server
 const port = process.env.PORT || 3000;

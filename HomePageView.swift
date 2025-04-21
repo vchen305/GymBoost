@@ -79,7 +79,7 @@ struct HomepageView: View {
                         .padding()
                         .background(RoundedRectangle(cornerRadius: 15).fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
                         .shadow(radius: 3)
-                        .padding(.bottom, 70)
+                        .padding(.bottom, 20)
 
                         VStack {
                             Text("Nutrients")
@@ -108,20 +108,26 @@ struct HomepageView: View {
                         .padding()
                         .background(RoundedRectangle(cornerRadius: 15).fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
                         .shadow(radius: 3)
-
-                        HStack(spacing: 10) {
-                            SmallCard(title: "Water", goal: "115oz", value: "56oz", icon: "drop.fill", color: .blue, isDarkMode: $isDarkMode)
-                            SmallCard(title: "Steps", goal: "10000", value: "2100", icon: "figure.walk", color: .green, isDarkMode: $isDarkMode)
+                        Spacer(minLength: 10) // Pushes content above the tab bar
+                        
+                        VStack {
+                          Image("ducklogo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, minHeight: 210, maxHeight: 215)
+                            .clipped()
+                            .cornerRadius(15)
+                            .shadow(radius: 3)
                         }
+                        .padding(.horizontal)
 
-                        Spacer(minLength: 100) // Pushes content above the tab bar
                     }
                     .padding()
                 }
 
                 // Bottom Nav Bar
                 HStack {
-                    BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
+                    BottomTabItem(icon: "house", label: "Home", highlighted: true, isDarkMode: isDarkMode)
                         .offset(y: 4)
 
                     NavigationLink(destination: WorkoutOptionsView()) {
@@ -130,7 +136,7 @@ struct HomepageView: View {
                     }
 
                     NavigationLink(destination: NutritionView(showHomepage: $showHomepage)) {
-                        BottomTabItem(icon: "leaf", label: "Nutrition", highlighted: true, isDarkMode: isDarkMode)
+                        BottomTabItem(icon: "leaf", label: "Nutrition", isDarkMode: isDarkMode)
                             .offset(y: 4)
                     }
 

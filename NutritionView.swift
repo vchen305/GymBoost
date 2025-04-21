@@ -20,6 +20,80 @@ struct NutritionView: View {
         Meal(name: "Dinner", foods: [])
     ]
 
+    private func updateCalories() {
+        let allFoods = meals.flatMap { $0.foods }
+    
+        calories_consumed = allFoods.reduce(0) { $0 + $1.calories }
+        needed_calories = max(0, daily_calories - calories_consumed)
+        
+        var carbsTotal: Double = 0
+        var fatTotal:  Double = 0
+        var proteinTotal: Double = 0
+        
+        for food in allFoods {
+            for nut in food.nutrients {
+                switch nut.nutrient_name.lowercased() {
+                case let s where s.contains("carb"):
+                    carbsTotal += nut.nutrient_value
+                case let s where s.contains("fat"):
+                    fatTotal  += nut.nutrient_value
+                case let s where s.contains("protein"):
+                    proteinTotal += nut.nutrient_value
+                default:
+                    break
+                }
+            }
+        }
+        carbs   = carbsTotal
+        fat     = fatTotal
+        protein = proteinTotal
+        
+        saveMealsToUserDefaults()
+    }
+    
+    private func resetServerCalories() {
+        guard let url = URL(string: "http://localhost:3000/update-calories") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(authToken, forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = [
+            "daily_calories": daily_calories,
+            "calories_needed": daily_calories
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: req).resume()
+    }
+
+    private func sendNutritionUpdate() {
+        guard let url = URL(string: "http://localhost:3000/update-nutrition") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(authToken, forHTTPHeaderField: "Authorization")
+        
+        let body: [String: Any] = [
+            "calories_consumed": calories_consumed,
+            "carbs": carbs,
+            "fat": fat,
+            "protein": protein
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+        } catch {
+            print("Failed to encode nutrition payload:", error)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, resp, err in
+            if let err = err {
+                print("Error updating nutrition on server:", err)
+            }
+        }.resume()
+    }
+
+    
     private func saveMealsToUserDefaults() {
         if let encoded = try? JSONEncoder().encode(meals) {
             UserDefaults.standard.set(encoded, forKey: "savedMeals_\(username)")
@@ -162,18 +236,32 @@ struct NutritionView: View {
             .background(RoundedRectangle(cornerRadius: 15).fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
             .shadow(radius: 3)
 
-            // Meal Widgets
             ScrollView {
-                ForEach($meals) { $meal in
-                    MealWidget(meal: $meal, isDarkMode: isDarkMode) {
-                        NavigationLink(destination: FoodSearchView(meal: $meal, onFoodAdded: { food in
-                            meal.foods.append(food)
-                            saveMealsToUserDefaults() // Save meals after food is added
-                        })) {
-                            Text("Add Food")
-                                .foregroundColor(.blue)
+                ForEach($meals, id: \.id) { $meal in
+                    MealWidget(
+                        meal: $meal,
+                        isDarkMode: isDarkMode,
+                        addFoodAction: {
+                            NavigationLink(
+                                destination: FoodSearchView(meal: $meal, onFoodAdded: { food in
+                                    meal.foods.append(food)
+                                    updateCalories()
+                                    sendNutritionUpdate()
+                                    saveMealsToUserDefaults()
+                                })
+                            ) {
+                                Text("Add Food")
+                                    .foregroundColor(.blue)
+                            }
+                        },
+                        clearAction: {
+                            meal.foods.removeAll()
+                            updateCalories()
+                            saveMealsToUserDefaults()
+                            resetServerCalories()
+                            sendNutritionUpdate()
                         }
-                    }
+                    )
                 }
             }
             .padding(.horizontal)
@@ -270,7 +358,8 @@ struct Meal: Identifiable, Codable {
 struct MealWidget: View {
     @Binding var meal: Meal
     let isDarkMode: Bool
-    var addFoodAction: () -> NavigationLink<Text, FoodSearchView>
+    let addFoodAction: () -> NavigationLink<Text, FoodSearchView>
+    let clearAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -279,31 +368,40 @@ struct MealWidget: View {
                     .font(.headline)
                     .foregroundColor(isDarkMode ? .white : .black)
                 Spacer()
-                addFoodAction()
-            }
 
-            ForEach(meal.foods) { food in
-                HStack {
-                    Text(food.name)
-                        .foregroundColor(isDarkMode ? .white : .black)
-                    Spacer()
-                    Text("\(food.calories) kcal")
-                        .foregroundColor(.gray)
+                Button("Clear") {
+                    clearAction()
                 }
+                .foregroundColor(.red)
+                .padding(.trailing, 8)
+
+                addFoodAction()
             }
 
             if meal.foods.isEmpty {
                 Text("No foods added yet.")
                     .foregroundColor(.gray)
                     .padding(.vertical, 8)
+            } else {
+                ForEach(meal.foods) { food in
+                    HStack {
+                        Text(food.name)
+                            .foregroundColor(isDarkMode ? .white : .black)
+                        Spacer()
+                        Text("\(food.calories) kcal")
+                            .foregroundColor(.gray)
+                    }
+                }
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 15).fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
+        .background(RoundedRectangle(cornerRadius: 15)
+                      .fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
         .shadow(radius: 3)
         .padding(.vertical, 8)
     }
 }
+
 
 
 
