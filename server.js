@@ -9,9 +9,12 @@ const path = require("path");
 const fs = require("fs");
 const axios = require('axios');
 const bodyParser = require('body-parser');
+const OpenAI = require('openai');
 
 // Load environment variables from .env file
 dotenv.config();
+console.log('Loaded OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '[REDACTED]' : '<<missing>>');
+
 
 const app = express();
 
@@ -48,6 +51,12 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,     // Using DB_USER from .env
     password: process.env.DB_PASSWORD, // Using DB_PASSWORD from .env
     database: process.env.DB_NAME  // Using DB_NAME from .env
+});
+
+const dbPromise = db.promise();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 // Test MySQL connection
@@ -701,6 +710,55 @@ app.post('/update-nutrition', authenticateUser, (req, res) => {
     res.json({ success: true });
   });
 });
+
+app.post('/ask-ai', authenticateUser, async (req, res) => {
+  const { question } = req.body;
+  console.log('[ask‑ai] got question:', question);
+
+  if (!question) return res.status(400).json({ answer: 'Question is required' });
+
+  try {
+    // 1) Fetch the user macros
+    const [[row]] = await dbPromise.query(
+      'SELECT daily_calories, calories_consumed, carbs, protein, fat FROM user WHERE userID = ?',
+      [req.user.id]
+    );
+    console.log('[ask‑ai] user data:', row);
+
+    // 2) Build the prompt
+    const { daily_calories, calories_consumed, carbs, protein, fat } = row;
+    const prompt = `Here is my data for today:
+- Daily calories: ${daily_calories} kcal
+- Calories consumed: ${calories_consumed} kcal
+- Carbs: ${carbs} g
+- Protein: ${protein} g
+- Fat: ${fat} g
+
+Question: ${question}`;
+    console.log('[ask‑ai] prompt:', prompt);
+
+    // 3) Call OpenAI
+    const response = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: 'You are a helpful nutrition and fitness assistant.' },
+        { role: 'user',   content: prompt }
+      ],
+      max_tokens: 300,
+      temperature: 0.7
+    });
+    console.log('[ask‑ai] OpenAI raw response:', response);
+
+    const answer = response.choices[0].message.content;
+    res.json({ answer });
+
+  } catch (err) {
+    // Log the full error
+    console.error('[ask‑ai] ERROR:', err.response?.data || err);
+    res.status(500).json({ answer: 'Server error: please try again' });
+  }
+});
+
 
 // Start server
 const port = process.env.PORT || 3000;

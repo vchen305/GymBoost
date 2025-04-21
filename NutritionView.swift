@@ -269,22 +269,29 @@ struct NutritionView: View {
             Spacer()
 
             HStack {
-                NavigationLink(destination: HomepageView(showHomepage: $showHomepage)) {
-                    BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
-                        .offset(y: 4)
+              NavigationLink(destination: HomepageView(showHomepage: $showHomepage)) {
+                BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
+                  .offset(y: 4)
+              }
+
+              NavigationLink(destination: WorkoutOptionsView()) {
+                BottomTabItem(icon: "dumbbell", label: "Workouts", isDarkMode: isDarkMode)
+                  .offset(y: 4)
+              }
+
+              BottomTabItem(icon: "leaf", label: "Nutrition", highlighted: true, isDarkMode: isDarkMode)
+                .offset(y: 4)
+
+                NavigationLink(destination: AIChatView(isDarkMode: $isDarkMode)) {
+                  BottomTabItem(
+                    icon: "bubble.left.and.bubble.right",
+                    label: "AI Chat",
+                    isDarkMode: isDarkMode
+                  )
+                  .offset(y: 4)
                 }
-
-                NavigationLink(destination: WorkoutOptionsView()) {
-                    BottomTabItem(icon: "dumbbell", label: "Workouts", isDarkMode: isDarkMode)
-                        .offset(y: 4)
-                }
-
-                BottomTabItem(icon: "leaf", label: "Nutrition", highlighted: true, isDarkMode: isDarkMode)
-                    .offset(y: 4)
-
-                BottomTabItem(icon: "line.3.horizontal", label: "More", isDarkMode: isDarkMode)
-                    .offset(y: 4)
             }
+
             .frame(height: 60)
             .background(isDarkMode ? Color.black.opacity(0.8) : Color.white)
             .shadow(radius: isDarkMode ? 0 : 2)
