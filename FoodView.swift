@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FoodSearchView: View {
+    @Binding var isDarkMode: Bool
     @Binding var meal: Meal
     var onFoodAdded: (Food) -> Void
 
@@ -12,150 +13,146 @@ struct FoodSearchView: View {
 
     @Environment(\.presentationMode) var presentationMode
 
-    let commonServingSizes = ["g", "kg", "ml", "cup", "tbsp", "oz", "slice"]
-
     var body: some View {
-        VStack(spacing: 10) {
-            TextField("Search for food", text: $searchText)
-                .padding(12)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal)
-                .onChange(of: searchText) { fetchFoodFromBackend() }
+        ZStack {
+            (isDarkMode ? Color.black.opacity(0.8) : Color(UIColor.systemGray6))
+                .ignoresSafeArea()
 
-            HStack {
-                Picker("Sort by", selection: $sortBy) {
-                    Text("Name").tag("name")
-                    Text("Calories").tag("calories")
+            VStack(spacing: 10) {
+                // Custom placeholder text for search
+                ZStack(alignment: .leading) {
+                    if searchText.isEmpty {
+                        Text("Search for food")
+                            .foregroundColor(isDarkMode ? Color.white.opacity(0.6) : Color.gray)
+                            .padding(.leading, 28)
+                    }
+                    TextField("", text: $searchText)
+                        .padding(12)
+                        .background(isDarkMode ? Color.black.opacity(0.2) : Color(.systemGray6))
+                        .foregroundColor(isDarkMode ? .white : .black)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        .onChange(of: searchText) { _ in fetchFoodFromBackend() }
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: sortBy) { fetchFoodFromBackend() }
 
-                Button(action: {
-                    sortOrder = (sortOrder == "asc") ? "desc" : "asc"
-                    fetchFoodFromBackend()
-                }) {
-                    Image(systemName: sortOrder == "asc" ? "arrow.up" : "arrow.down")
-                }
-            }
-            .padding(.horizontal)
+                // Sort controls
+                HStack {
+                    Picker("Sort by", selection: $sortBy) {
+                        Text("Name").tag("name")
+                        Text("Calories").tag("calories")
+                    }
+                    .pickerStyle(.segmented)
+                    .background(isDarkMode ? Color.black.opacity(0.2) : Color.white)
+                    .cornerRadius(8)
+                    .onChange(of: sortBy) { _ in fetchFoodFromBackend() }
 
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(foodOptions) { food in
-                        FoodItemView(food: food) { scaledFood in
-                            onFoodAdded(scaledFood)
-                         
-                            presentationMode.wrappedValue.dismiss()
-                        }
+                    Button(action: {
+                        sortOrder = sortOrder == "asc" ? "desc" : "asc"
+                        fetchFoodFromBackend()
+                    }) {
+                        Image(systemName: sortOrder == "asc" ? "arrow.up" : "arrow.down")
+                            .foregroundColor(isDarkMode ? .white : .blue)
                     }
                 }
                 .padding(.horizontal)
-            }
 
-            Spacer()
+                // Results list
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(foodOptions) { food in
+                            FoodItemView(food: food, isDarkMode: isDarkMode) { scaledFood in
+                                onFoodAdded(scaledFood)
+                                presentationMode.wrappedValue.dismiss()
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                Spacer()
+            }
         }
         .navigationTitle("Add Food to \(meal.name)")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            fetchFoodFromBackend()
-        }
+        .onAppear { fetchFoodFromBackend() }
     }
 
     private func fetchFoodFromBackend() {
-        let encodedSearch = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "http://localhost:3000/api/foods?search=\(encodedSearch)&sort=\(sortBy)&order=\(sortOrder)"
-
-        guard let url = URL(string: urlString) else { return }
-
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let data = data {
-                do {
-                    let decoded = try JSONDecoder().decode(FoodResponse.self, from: data)
-                    DispatchQueue.main.async {
-                        self.foodOptions = decoded.data
-                    }
-                } catch {
-                    print("Decoding error:", error)
-                }
-            } else if let error = error {
-                print("Fetch error:", error)
+        let encoded = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        guard let url = URL(string: "http://localhost:3000/api/foods?search=\(encoded)&sort=\(sortBy)&order=\(sortOrder)") else { return }
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            if let data = data,
+               let decoded = try? JSONDecoder().decode(FoodResponse.self, from: data) {
+                DispatchQueue.main.async { foodOptions = decoded.data }
             }
         }.resume()
     }
-
-   
-}
-
-struct FoodResponse: Codable {
-    let data: [Food]
 }
 
 struct FoodItemView: View {
     let food: Food
+    let isDarkMode: Bool
     let onSelect: (Food) -> Void
 
     @State private var selectedServingSize: String
     @State private var quantity: Double
     @AppStorage("authToken") private var authToken: String = ""
 
-    let servingOptions: [String] = ["g", "kg", "oz", "ml", "tbsp", "cup", "slice"]
+    private let servingOptions: [String] = ["g", "kg", "oz", "ml", "tbsp", "cup", "slice"]
 
-    init(food: Food, onSelect: @escaping (Food) -> Void) {
+    init(food: Food, isDarkMode: Bool, onSelect: @escaping (Food) -> Void) {
         self.food = food
+        self.isDarkMode = isDarkMode
         self.onSelect = onSelect
-
         let defaultUnit = food.nutrients.first?.unit ?? "g"
         let defaultAmount = food.nutrients.first?.amount ?? 100
-
         _selectedServingSize = State(initialValue: defaultUnit.lowercased())
         _quantity = State(initialValue: defaultAmount)
     }
 
     var body: some View {
-        let baseAmount = food.nutrients.first?.amount ?? 100
-        let baseUnit = food.nutrients.first?.unit ?? "g"
-        let multiplier = getMultiplier(for: selectedServingSize, baseUnit: baseUnit)
-        let adjustedMultiplier = (quantity * multiplier) / baseAmount
-        let scaledCalories = Int(Double(food.calories) * adjustedMultiplier)
-
-        // Retrieve and scale nutrients from the nutrients array
-        let scaledProtein = getNutrientValue(for: "protein", multiplier: adjustedMultiplier)
-        let scaledFat = getNutrientValue(for: "total lipid (fat)", multiplier: adjustedMultiplier)
-        let scaledCarbs = getNutrientValue(for: "carbohydrate, by difference", multiplier: adjustedMultiplier)
+        let base = food.nutrients.first
+        let baseAmount = base?.amount ?? 100
+        let multiplier = getMultiplier(for: selectedServingSize, baseUnit: base?.unit ?? "g")
+        let adjusted = (quantity * multiplier) / baseAmount
+        let calories = Int(Double(food.calories) * adjusted)
+        let proteinVal = getNutrientValue(for: "protein", multiplier: adjusted)
+        let fatVal = getNutrientValue(for: "total lipid (fat)", multiplier: adjusted)
+        let carbVal = getNutrientValue(for: "carbohydrate, by difference", multiplier: adjusted)
 
         VStack(alignment: .leading, spacing: 8) {
             Text(food.name)
                 .font(.headline)
+                .foregroundColor(isDarkMode ? .white : .primary)
 
-            Text("\(scaledCalories) kcal")
+            Text("\(calories) kcal")
                 .foregroundColor(.gray)
 
-            if let protein = scaledProtein {
-                Text("Protein: \(String(format: "%.1f", protein)) g")
+            if let p = proteinVal {
+                Text("Protein: \(String(format: "%.1f", p)) g")
+                    .foregroundColor(isDarkMode ? .white : .primary)
             }
-
-            if let fat = scaledFat {
-                Text("Fat: \(String(format: "%.1f", fat)) g")
+            if let f = fatVal {
+                Text("Fat: \(String(format: "%.1f", f)) g")
+                    .foregroundColor(isDarkMode ? .white : .primary)
             }
-
-            if let carb = scaledCarbs {
-                Text("Carbs: \(String(format: "%.1f", carb)) g")
+            if let c = carbVal {
+                Text("Carbs: \(String(format: "%.1f", c)) g")
+                    .foregroundColor(isDarkMode ? .white : .primary)
             }
-
-            Text("Serving: \(String(format: "%.1f", quantity)) \(selectedServingSize)")
 
             HStack {
-                Text("Custom Amount:")
+                Text("Serving:")
+                    .foregroundColor(isDarkMode ? .white : .primary)
+
                 TextField("Qty", value: $quantity, formatter: NumberFormatter())
                     .keyboardType(.decimalPad)
                     .frame(width: 60)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .background(isDarkMode ? Color.black.opacity(0.2) : Color.white)
 
                 Picker("Unit", selection: $selectedServingSize) {
-                    ForEach(servingOptions, id: \.self) { size in
-                        Text(size).tag(size)
-                    }
+                    ForEach(servingOptions, id: \.self) { size in Text(size).tag(size) }
                 }
                 .pickerStyle(MenuPickerStyle())
             }
@@ -163,28 +160,16 @@ struct FoodItemView: View {
             HStack {
                 Spacer()
                 Button(action: {
-                    var scaledFood = food
-                    scaledFood.calories = scaledCalories
-                    
-                    // Update the nutrients with the scaled values
-                    scaledFood.nutrients = scaledFood.nutrients.map { nutrient in
-                        var scaledNutrient = nutrient
-                        if scaledNutrient.nutrient_name.lowercased() == "protein" {
-                            scaledNutrient.nutrient_value = scaledProtein ?? 0
-                        }
-                        if scaledNutrient.nutrient_name.lowercased() == "total lipid (fat)" {
-                            scaledNutrient.nutrient_value = scaledFat ?? 0
-                        }
-                        if scaledNutrient.nutrient_name.lowercased() == "carbohydrate, by difference" {
-                            scaledNutrient.nutrient_value = scaledCarbs ?? 0
-                        }
-                        return scaledNutrient
+                    var newFood = food
+                    newFood.calories = calories
+                    newFood.nutrients = newFood.nutrients.map { nut in
+                        var m = nut
+                        if m.nutrient_name.lowercased() == "protein" { m.nutrient_value = proteinVal ?? 0 }
+                        if m.nutrient_name.lowercased() == "total lipid (fat)" { m.nutrient_value = fatVal ?? 0 }
+                        if m.nutrient_name.lowercased() == "carbohydrate, by difference" { m.nutrient_value = carbVal ?? 0 }
+                        return m
                     }
-                    
-                    onSelect(scaledFood)
-
-               
-                    updateCaloriesNeeded(scaledFood.calories, scaledProtein: scaledProtein, scaledFat: scaledFat, scaledCarbs: scaledCarbs)
+                    onSelect(newFood)
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .foregroundColor(.blue)
@@ -193,66 +178,19 @@ struct FoodItemView: View {
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray5)))
+        .background(RoundedRectangle(cornerRadius: 12)
+            .fill(isDarkMode ? Color.black.opacity(0.2) : Color(.systemGray5)))
     }
 
     private func getMultiplier(for selectedSize: String, baseUnit: String) -> Double {
-        let conversionTable: [String: Double] = [
-            "g": 1.0, "kg": 1000.0, "oz": 28.35,
-            "ml": 1.0, "tbsp": 15.0, "cup": 240.0, "slice": 30.0
-        ]
-
-        let cleanSelected = selectedSize.lowercased().trimmingCharacters(in: .whitespaces)
-        let cleanBase = baseUnit.lowercased().trimmingCharacters(in: .whitespaces)
-
-        guard let selectedVal = conversionTable[cleanSelected],
-              let baseVal = conversionTable[cleanBase] else {
-            return 1.0
-        }
-
-        return selectedVal / baseVal
+        let table: [String: Double] = ["g":1, "kg":1000, "oz":28.35, "ml":1, "tbsp":15, "cup":240, "slice":30]
+        return (table[selectedSize.lowercased()] ?? 1) / (table[baseUnit.lowercased()] ?? 1)
     }
 
-    // Function to get scaled nutrient value for a given nutrient name
     private func getNutrientValue(for nutrientName: String, multiplier: Double) -> Double? {
-        guard let nutrient = food.nutrients.first(where: { $0.nutrient_name.lowercased() == nutrientName.lowercased() }) else {
-            return nil
-        }
-        return nutrient.nutrient_value * multiplier
-    }
-    
-    private func updateCaloriesNeeded(_ foodCalories: Int, scaledProtein: Double?, scaledFat: Double?, scaledCarbs: Double?) {
-        guard let url = URL(string: "http://localhost:3000/update-calories-needed") else { return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(authToken, forHTTPHeaderField: "Authorization")
-
-        // Include calories, protein, fat, and carbs in the request body
-        let body: [String: Any] = [
-            "food_calories": foodCalories,
-            "protein": scaledProtein ?? 0,  // Default to 0 if nil
-            "fat": scaledFat ?? 0,          // Default to 0 if nil
-            "carbs": scaledCarbs ?? 0       // Default to 0 if nil
-        ]
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        } catch {
-            print("Failed to encode calorie data")
-            return
-        }
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error updating calories_needed: \(error)")
-                return
-            }
-
-            DispatchQueue.main.async {
-            
-            }
-        }.resume()
+        guard let nut = food.nutrients.first(where: { $0.nutrient_name.lowercased() == nutrientName.lowercased() }) else { return nil }
+        return nut.nutrient_value * multiplier
     }
 }
+
+struct FoodResponse: Codable { let data: [Food] }

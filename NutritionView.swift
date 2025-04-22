@@ -243,7 +243,7 @@ struct NutritionView: View {
                         isDarkMode: isDarkMode,
                         addFoodAction: {
                             NavigationLink(
-                                destination: FoodSearchView(meal: $meal, onFoodAdded: { food in
+                                destination: FoodSearchView(isDarkMode: $isDarkMode, meal: $meal, onFoodAdded: { food in
                                     meal.foods.append(food)
                                     updateCalories()
                                     sendNutritionUpdate()
