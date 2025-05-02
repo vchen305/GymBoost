@@ -41,37 +41,6 @@ struct WorkoutOptionsView: View {
                 }
 
                 Spacer()
-
-                // Bottom NavBar
-                HStack {
-                  NavigationLink(destination: HomepageView(showHomepage: $showHomepage)) {
-                    BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
-                      .offset(y: 4)
-                  }
-
-                  BottomTabItem(icon: "dumbbell", label: "Workouts", highlighted: true, isDarkMode: isDarkMode)
-                    .offset(y: 4)
-
-                  NavigationLink(destination: NutritionView(showHomepage: $showHomepage)) {
-                    BottomTabItem(icon: "leaf", label: "Nutrition", isDarkMode: isDarkMode)
-                      .offset(y: 4)
-                  }
-
-                    NavigationLink(destination: AIChatView(isDarkMode: $isDarkMode)) {
-                      BottomTabItem(
-                        icon: "bubble.left.and.bubble.right",
-                        label: "AI Chat",
-                        isDarkMode: isDarkMode
-                      )
-                      .offset(y: 4)
-                    }
-
-                }
-
-                .frame(height: 60)
-                .background(isDarkMode ? Color.black.opacity(0.8) : Color.white)
-                .shadow(radius: isDarkMode ? 0 : 2)
-                .padding(.bottom,0)
             }
         }
         .navigationBarTitleDisplayMode(.inline)

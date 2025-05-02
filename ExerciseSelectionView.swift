@@ -163,9 +163,10 @@ struct ExerciseView: View {
                         .font(.system(size: 35, weight: .bold))
                         .foregroundColor(isDarkMode ? Color.white : Color.black)
                 }
+                
             }
             
-            //.navigationTitle(workoutType)
+         
             .onAppear {
                 if !selectedExerciseIDs.isEmpty {
                     selectedExerciseIDs.removeAll()
@@ -173,6 +174,7 @@ struct ExerciseView: View {
                 fetchUserPreferences()
                 fetchExercises()
             }
+            
         }
     }
 

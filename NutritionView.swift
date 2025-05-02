@@ -22,35 +22,30 @@ struct NutritionView: View {
 
     private func updateCalories() {
         let allFoods = meals.flatMap { $0.foods }
-    
         calories_consumed = allFoods.reduce(0) { $0 + $1.calories }
         needed_calories = max(0, daily_calories - calories_consumed)
-        
+
         var carbsTotal: Double = 0
-        var fatTotal:  Double = 0
+        var fatTotal: Double = 0
         var proteinTotal: Double = 0
-        
         for food in allFoods {
             for nut in food.nutrients {
-                switch nut.nutrient_name.lowercased() {
-                case let s where s.contains("carb"):
+                let name = nut.nutrient_name.lowercased()
+                if name.contains("carb") {
                     carbsTotal += nut.nutrient_value
-                case let s where s.contains("fat"):
-                    fatTotal  += nut.nutrient_value
-                case let s where s.contains("protein"):
+                } else if name.contains("fat") {
+                    fatTotal += nut.nutrient_value
+                } else if name.contains("protein") {
                     proteinTotal += nut.nutrient_value
-                default:
-                    break
                 }
             }
         }
-        carbs   = carbsTotal
-        fat     = fatTotal
+        carbs = carbsTotal
+        fat = fatTotal
         protein = proteinTotal
-        
         saveMealsToUserDefaults()
     }
-    
+
     private func resetServerCalories() {
         guard let url = URL(string: "http://localhost:3000/update-calories") else { return }
         var req = URLRequest(url: url)
@@ -71,29 +66,18 @@ struct NutritionView: View {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(authToken, forHTTPHeaderField: "Authorization")
-        
+
         let body: [String: Any] = [
             "calories_consumed": calories_consumed,
             "carbs": carbs,
             "fat": fat,
             "protein": protein
         ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-        } catch {
-            print("Failed to encode nutrition payload:", error)
-            return
-        }
-        
-        URLSession.shared.dataTask(with: request) { data, resp, err in
-            if let err = err {
-                print("Error updating nutrition on server:", err)
-            }
-        }.resume()
+
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request).resume()
     }
 
-    
     private func saveMealsToUserDefaults() {
         if let encoded = try? JSONEncoder().encode(meals) {
             UserDefaults.standard.set(encoded, forKey: "savedMeals_\(username)")
@@ -109,61 +93,47 @@ struct NutritionView: View {
 
     private func fetchCaloriesData() {
         guard let url = URL(string: "http://localhost:3000/caloriesData") else { return }
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(authToken, forHTTPHeaderField: "Authorization")
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error:", error)
-                return
-            }
-
-            guard let data = data else { return }
-
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            guard let data = data, error == nil else { return }
             do {
-                let decodedResponse = try JSONDecoder().decode(CaloriesData.self, from: data)
+                let resp = try JSONDecoder().decode(CaloriesData.self, from: data)
                 DispatchQueue.main.async {
-                    self.daily_calories = decodedResponse.daily_calories
-                    self.calories_consumed = decodedResponse.calories_consumed
-                    self.calories_burned = decodedResponse.calories_burned
-                    self.needed_calories = decodedResponse.calories_needed
-                    self.carbs = decodedResponse.carbs
-                    self.fat = decodedResponse.fat
-                    self.protein = decodedResponse.protein
+                    daily_calories = resp.daily_calories
+                    calories_consumed = resp.calories_consumed
+                    calories_burned = resp.calories_burned
+                    needed_calories = resp.calories_needed
+                    carbs = resp.carbs
+                    fat = resp.fat
+                    protein = resp.protein
                 }
-            } catch {
-                print("Decoding error:", error)
-            }
+            } catch { print(error) }
         }.resume()
     }
 
     private func fetchUserPreferences() {
         guard let url = URL(string: "http://localhost:3000/profile") else { return }
-
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue(authToken, forHTTPHeaderField: "Authorization")
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error { return }
-            guard let data = data else { return }
-
+        URLSession.shared.dataTask(with: request) { data, _, error in
+            guard let data = data, error == nil else { return }
             do {
-                let decodedResponse = try JSONDecoder().decode(UserProfile.self, from: data)
+                let profile = try JSONDecoder().decode(UserProfile.self, from: data)
                 DispatchQueue.main.async {
-                    self.username = decodedResponse.username
+                    username = profile.username
                     loadUserDarkModePreference()
                 }
-            } catch {}
+            } catch { print(error) }
         }.resume()
     }
 
     private func loadUserDarkModePreference() {
-        let userKey = "isDarkMode_\(username)"
-        isDarkMode = UserDefaults.standard.bool(forKey: userKey)
-        loadMealsFromUserDefaults() // Load meals after getting username
+        let key = "isDarkMode_\(username)"
+        isDarkMode = UserDefaults.standard.bool(forKey: key)
+        loadMealsFromUserDefaults()
     }
 
     var body: some View {
@@ -173,24 +143,21 @@ struct NutritionView: View {
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(Color.orange)
-                    .padding(.top, 1)
-                    .padding(.leading, 117)
-
                 Spacer()
             }
             .padding(.horizontal)
+            .padding(.top, 10)
 
             // Calories Summary
             VStack {
                 Text("Calories")
                     .font(.headline)
                     .foregroundColor(isDarkMode ? .white : .black)
-
                 ZStack {
                     Circle()
                         .stroke(Color.gray.opacity(0.3), lineWidth: 10)
                     Circle()
-                        .trim(from: 0, to: CGFloat(needed_calories) / CGFloat(daily_calories))
+                        .trim(from: 0, to: CGFloat(needed_calories) / CGFloat(daily_calories == 0 ? 1 : daily_calories))
                         .stroke(Color.orange, lineWidth: 10)
                         .rotationEffect(.degrees(-90))
                     Text("\(needed_calories)\nNeeded")
@@ -233,7 +200,10 @@ struct NutritionView: View {
                 .foregroundColor(isDarkMode ? .white : .black)
             }
             .padding()
-            .background(RoundedRectangle(cornerRadius: 15).fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(isDarkMode ? Color(UIColor.secondarySystemBackground) : Color.white)
+            )
             .shadow(radius: 3)
 
             ScrollView {
@@ -250,8 +220,7 @@ struct NutritionView: View {
                                     saveMealsToUserDefaults()
                                 })
                             ) {
-                                Text("Add Food")
-                                    .foregroundColor(.blue)
+                                Text("Add Food").foregroundColor(.blue)
                             }
                         },
                         clearAction: {
@@ -262,40 +231,11 @@ struct NutritionView: View {
                             sendNutritionUpdate()
                         }
                     )
+                    .padding(.horizontal)
                 }
             }
-            .padding(.horizontal)
 
             Spacer()
-
-            HStack {
-              NavigationLink(destination: HomepageView(showHomepage: $showHomepage)) {
-                BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
-                  .offset(y: 4)
-              }
-
-              NavigationLink(destination: WorkoutOptionsView()) {
-                BottomTabItem(icon: "dumbbell", label: "Workouts", isDarkMode: isDarkMode)
-                  .offset(y: 4)
-              }
-
-              BottomTabItem(icon: "leaf", label: "Nutrition", highlighted: true, isDarkMode: isDarkMode)
-                .offset(y: 4)
-
-                NavigationLink(destination: AIChatView(isDarkMode: $isDarkMode)) {
-                  BottomTabItem(
-                    icon: "bubble.left.and.bubble.right",
-                    label: "AI Chat",
-                    isDarkMode: isDarkMode
-                  )
-                  .offset(y: 4)
-                }
-            }
-
-            .frame(height: 60)
-            .background(isDarkMode ? Color.black.opacity(0.8) : Color.white)
-            .shadow(radius: isDarkMode ? 0 : 2)
-            .padding(.bottom, 0)
         }
         .background(isDarkMode ? Color.black.opacity(0.8) : Color(UIColor.systemGray6))
         .onAppear {
@@ -305,6 +245,7 @@ struct NutritionView: View {
     }
 }
 
+// MARK: Supporting Types
 
 struct Food: Identifiable, Codable {
     var id = UUID()
@@ -315,26 +256,24 @@ struct Food: Identifiable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case food_id = "id"
-        case name
-        case calories
-        case nutrients
+        case name, calories, nutrients
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.food_id = try container.decode(Int.self, forKey: .food_id)
-        self.name = try container.decode(String.self, forKey: .name)
-        self.calories = try container.decode(Int.self, forKey: .calories)
-        self.nutrients = try container.decode([FoodNutrient].self, forKey: .nutrients)
-        self.id = UUID()
+        food_id = try container.decode(Int.self, forKey: .food_id)
+        name = try container.decode(String.self, forKey: .name)
+        calories = try container.decode(Int.self, forKey: .calories)
+        nutrients = try container.decode([FoodNutrient].self, forKey: .nutrients)
+        id = UUID()
     }
 
     init(food_id: Int, name: String, calories: Int, nutrients: [FoodNutrient]) {
-        self.id = UUID()
         self.food_id = food_id
         self.name = name
         self.calories = calories
         self.nutrients = nutrients
+        id = UUID()
     }
 }
 
@@ -361,7 +300,6 @@ struct Meal: Identifiable, Codable {
     }
 }
 
-
 struct MealWidget: View {
     @Binding var meal: Meal
     let isDarkMode: Bool
@@ -375,13 +313,9 @@ struct MealWidget: View {
                     .font(.headline)
                     .foregroundColor(isDarkMode ? .white : .black)
                 Spacer()
-
-                Button("Clear") {
-                    clearAction()
-                }
-                .foregroundColor(.red)
-                .padding(.trailing, 8)
-
+                Button("Clear") { clearAction() }
+                    .foregroundColor(.red)
+                    .padding(.trailing, 8)
                 addFoodAction()
             }
 
@@ -402,20 +336,17 @@ struct MealWidget: View {
             }
         }
         .padding()
-        .background(RoundedRectangle(cornerRadius: 15)
-                      .fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
+        .background(
+            RoundedRectangle(cornerRadius: 15)
+                .fill(isDarkMode ? Color(UIColor.secondarySystemBackground) : Color.white)
+        )
         .shadow(radius: 3)
         .padding(.vertical, 8)
     }
 }
 
-
-
-
 struct NutritionView_Previews: PreviewProvider {
     static var previews: some View {
-        NavigationView {
-            NutritionView(showHomepage: .constant(true))
-        }
+        NavigationView { NutritionView(showHomepage: .constant(true)) }
     }
 }

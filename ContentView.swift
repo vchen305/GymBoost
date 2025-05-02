@@ -13,6 +13,7 @@ struct ContentView: View {
                 }
                 .navigationDestination(isPresented: $showHomepage) {
                     HomepageView(showHomepage: $showHomepage)
+                        .navigationBarBackButtonHidden(true)
                        
                 }
         }

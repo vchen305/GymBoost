@@ -17,13 +17,18 @@ struct AIChatView: View {
     ]
 
     var body: some View {
+        NavigationStack {
+            content
+        }
+        .environment(\.colorScheme, isDarkMode ? .dark : .light)
+    }
+
+    private var content: some View {
         ZStack(alignment: .bottom) {
-            // Background
             (isDarkMode ? Color.black.opacity(0.8) : Color(UIColor.systemGray6))
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                // Always visible header
                 Text("Ask AI")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -31,117 +36,98 @@ struct AIChatView: View {
                     .padding(.top)
 
                 if !showAnswer {
-                    // Question list view
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            ForEach(questions, id: \.self) { question in
-                                Button(action: {
-                                    aiResponse = ""
-                                    withAnimation { showAnswer = true }
-                                    sendQuestionToAPI(question: question)
-                                }) {
-                                    Text(question)
-                                        .font(.headline)
-                                        .padding()
-                                        .frame(maxWidth: .infinity)
-                                        .background(isDarkMode ? Color.blue.opacity(0.7) : Color.blue)
-                                        .foregroundColor(.white)
-                                        .cornerRadius(12)
-                                        .multilineTextAlignment(.center)
-                                }
-                            }
-                        }
-                        .padding([.leading, .trailing])
-                    }
+                    questionList
                 } else {
-                    // Answer view
-                    VStack(spacing: 16) {
-                        HStack {
-                            Button(action: {
-                                withAnimation {
-                                    showAnswer = false
-                                    aiResponse = ""
-                                }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "chevron.left")
-                                    Text("Back")
-                                }
-                                .font(.title3)
-                                .foregroundColor(isDarkMode ? .white : .blue)
-                                .padding(.leading)
-                            }
-                            Spacer()
-                        }
-                        .padding(.top, 12)
-
-                        ScrollView {
-                            if isLoading {
-                                Text("Loading answer...")
-                                    .italic()
-                                    .foregroundColor(isDarkMode ? .gray : .gray)
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)  // ensure full width
-                            } else {
-                                Text(aiResponse)
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .foregroundColor(isDarkMode ? .white : .black)
-                            }
-                        }
-                        .scrollIndicators(.visible)
-                        .frame(maxWidth: .infinity)           // <- add this so the box itself stays full‑width
-                        .background(isDarkMode
-                            ? Color.black.opacity(0.7)
-                            : Color.white
-                        )
-                        .cornerRadius(12)
-                        .padding([.leading, .trailing])
-                    }
+                    answerView
                 }
 
                 Spacer(minLength: 70)
             }
 
-            // Bottom navigation bar
-            HStack {
-                NavigationLink(destination: HomepageView(showHomepage: .constant(true))) {
-                    BottomTabItem(icon: "house", label: "Home", isDarkMode: isDarkMode)
-                        .offset(y: 4)
-                }
-                NavigationLink(destination: WorkoutOptionsView()) {
-                    BottomTabItem(icon: "dumbbell", label: "Workouts", isDarkMode: isDarkMode)
-                        .offset(y: 4)
-                }
-                NavigationLink(destination: NutritionView(showHomepage: .constant(true))) {
-                    BottomTabItem(icon: "leaf", label: "Nutrition", isDarkMode: isDarkMode)
-                        .offset(y: 4)
-                }
-                BottomTabItem(icon: "bubble.left.and.bubble.right", label: "AI Chat", highlighted: true, isDarkMode: isDarkMode)
-                    .offset(y: 4)
-            }
-            .frame(height: 60)
-            .frame(maxWidth: .infinity)
-            .background(isDarkMode ? Color.black.opacity(0.8) : Color.white)
-            .shadow(radius: isDarkMode ? 0 : 2)
-            .ignoresSafeArea(edges: .bottom)
-            .zIndex(1)
-
-            // Loading overlay
             if isLoading {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(12)
-                    .shadow(radius: 10)
-                    .zIndex(2)
+                loadingOverlay
             }
         }
         .navigationBarBackButtonHidden(true)
     }
 
-    // Sends the selected question to the backend '/ask-ai' endpoint
+    private var questionList: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                ForEach(questions, id: \.self) { question in
+                    Button(action: {
+                        aiResponse = ""
+                        withAnimation { showAnswer = true }
+                        sendQuestionToAPI(question: question)
+                    }) {
+                        Text(question)
+                            .font(.headline)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(isDarkMode ? Color.blue.opacity(0.7) : Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            }
+            .padding([.leading, .trailing])
+        }
+    }
+
+    private var answerView: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Button(action: {
+                    withAnimation {
+                        showAnswer = false
+                        aiResponse = ""
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                        Text("Back")
+                    }
+                    .font(.title3)
+                    .foregroundColor(isDarkMode ? .white : .blue)
+                    .padding(.leading)
+                }
+                Spacer()
+            }
+            .padding(.top, 12)
+
+            ScrollView {
+                if isLoading {
+                    Text("Loading answer...")
+                        .italic()
+                        .foregroundColor(.gray)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(aiResponse)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundColor(isDarkMode ? .white : .black)
+                }
+            }
+            .scrollIndicators(.visible)
+            .frame(maxWidth: .infinity)
+            .background(isDarkMode ? Color.black.opacity(0.7) : Color.white)
+            .cornerRadius(12)
+            .padding([.leading, .trailing])
+        }
+    }
+
+    private var loadingOverlay: some View {
+        ProgressView()
+            .scaleEffect(1.5)
+            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(radius: 10)
+            .zIndex(2)
+    }
+
     func sendQuestionToAPI(question: String) {
         guard !authToken.isEmpty else {
             aiResponse = "Error: No auth token. Please log in."

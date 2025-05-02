@@ -23,17 +23,19 @@ struct FoodSearchView: View {
                 ZStack(alignment: .leading) {
                     if searchText.isEmpty {
                         Text("Search for food")
-                            .foregroundColor(isDarkMode ? Color.white.opacity(0.6) : Color.gray)
-                            .padding(.leading, 28)
+                            .foregroundColor(Color(.placeholderText))
+                            .padding(.leading, 16)
                     }
                     TextField("", text: $searchText)
                         .padding(12)
-                        .background(isDarkMode ? Color.black.opacity(0.2) : Color(.systemGray6))
                         .foregroundColor(isDarkMode ? .white : .black)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                        .onChange(of: searchText) { _ in fetchFoodFromBackend() }
+                        .onChange(of: searchText) { _ in
+                            fetchFoodFromBackend()
+                        }
                 }
+                .background(isDarkMode ? Color.black.opacity(0.2) : Color.white)
+                .cornerRadius(12)
+                .padding(.horizontal)
 
                 // Sort controls
                 HStack {
@@ -179,7 +181,7 @@ struct FoodItemView: View {
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 12)
-            .fill(isDarkMode ? Color.black.opacity(0.2) : Color(.systemGray5)))
+            .fill(isDarkMode ? Color.black.opacity(0.2) : Color.white))
     }
 
     private func getMultiplier(for selectedSize: String, baseUnit: String) -> Double {
