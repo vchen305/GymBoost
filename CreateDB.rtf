@@ -1,0 +1,74 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2821
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 CREATE DATABASE gymboost;\
+USE gymboost;\
+\
+CREATE TABLE exercises (\
+    id INT AUTO_INCREMENT PRIMARY KEY,\
+    name VARCHAR(255) NOT NULL,\
+    muscle_group VARCHAR(100) NOT NULL,\
+    difficulty VARCHAR(50) NOT NULL\
+);\
+\
+CREATE TABLE food (\
+    id INT AUTO_INCREMENT PRIMARY KEY,\
+    name VARCHAR(255) NOT NULL,\
+    calories FLOAT NOT NULL\
+);\
+\
+CREATE TABLE food_nutrients (\
+    id INT AUTO_INCREMENT PRIMARY KEY,\
+    food_id INT NOT NULL,\
+    serving_size_description VARCHAR(255) NOT NULL,\
+    amount DOUBLE NOT NULL,\
+    unit VARCHAR(50) NOT NULL,\
+    nutrient_name VARCHAR(100) NOT NULL,\
+    nutrient_value DOUBLE NOT NULL,\
+    calories DOUBLE NOT NULL,\
+    FOREIGN KEY (food_id) REFERENCES food(id) ON DELETE CASCADE\
+);\
+\
+\
+CREATE TABLE sessions (\
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,\
+    user_id INT NOT NULL,\
+    token VARCHAR(255) NOT NULL,\
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\
+    expires_at TIMESTAMP NOT NULL,\
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE\
+);\
+\
+CREATE TABLE user (\
+    userID INT AUTO_INCREMENT PRIMARY KEY,\
+    username VARCHAR(50) NOT NULL,\
+    email VARCHAR(255) NOT NULL UNIQUE,\
+    passwordHash VARCHAR(255) NOT NULL,\
+    first_login TINYINT(1) DEFAULT 1,\
+    avatar_url VARCHAR(255),\
+    daily_calories INT DEFAULT 0,\
+    calories_consumed INT DEFAULT 0,\
+    calories_burned INT DEFAULT 0,\
+    calories_needed INT DEFAULT 0,\
+    carbs DECIMAL(10,2) DEFAULT 0.00,\
+    fat DECIMAL(10,2) DEFAULT 0.00,\
+    protein DECIMAL(10,2) DEFAULT 0.00\
+);\
+\
+CREATE TABLE workouts (\
+    id INT AUTO_INCREMENT PRIMARY KEY,\
+    userID INT NOT NULL,\
+    exerciseID INT NOT NULL,\
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\
+    day VARCHAR(20) NOT NULL,\
+    sets INT NOT NULL,\
+    reps INT NOT NULL,\
+    FOREIGN KEY (userID) REFERENCES user(userID) ON DELETE CASCADE,\
+    FOREIGN KEY (exerciseID) REFERENCES exercises(id) ON DELETE CASCADE\
+);\
+\
+}
